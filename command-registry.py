@@ -46,15 +46,15 @@ async def handle_command(command):
     logging.info(f"Completed action for {command.id}")
 
 
-async def send_command(queue):
+async def send_command(queue, count):
     """Issue a command
 
     Args:
         queue (asyncio.Queue): Queue to publish commands to
     """
+    count = 0
 
-    while True:
-        # Simulate a command ID and a command action
+    while count < 5:
         id = str(uuid.uuid4())
         command = "".join(random.choices(AVAILABLE_COMMANDS, k=4))
 
@@ -68,6 +68,8 @@ async def send_command(queue):
         # Simulate randomness of publishing commands
         await asyncio.sleep(random.random())
 
+        count += 1
+
 
 async def receive_command(queue):
     """Receive command and create task for handling it
@@ -78,9 +80,9 @@ async def receive_command(queue):
     while True:
         command = await queue.get()
 
-        logging.info(f"Received {command.id}")
-
-        asyncio.create_task(handle_command(command))
+        if command:
+            logging.info(f"Received {command.id}")
+            asyncio.create_task(handle_command(command))
 
 
 async def _shutdown(loop, signal=None):
@@ -92,24 +94,11 @@ async def _shutdown(loop, signal=None):
 
 
 def main():
-    # ---------------------------- Configure loop and command storage --------------------------- #
-    loop = asyncio.get_event_loop()
+    # --------------------------------- Configure command storage ------------------------------- #
     command_queue = asyncio.Queue()
 
-    # -------------------------------- Configure signal handlers -------------------------------- #
-    signals = (signal.SIGHUP, signal.SIGTERM, signal.SIGINT)
-    for s in signals:
-        loop.add_signal_handler(s, lambda s=s: asyncio.create_task(_shutdown(loop, signal=s)))
-
-    # ------------------------------ Run loops and handle shutdown ------------------------------ #
-    try:
-        loop.create_task(send_command(command_queue))
-        loop.create_task(receive_command(command_queue))
-        loop.run_forever()
-    except RuntimeError as e:
-        logging.error("RUNTIME ERROR", e)
-    finally:
-        logging.info("Machine has been shutdown. Program exiting.")
+    asyncio.run(send_command(command_queue, 5))
+    asyncio.run(receive_command(command_queue))
 
 
 if __name__ == "__main__":
