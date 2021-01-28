@@ -34,6 +34,7 @@ class Command:
     command = attr.ib()
     id = attr.ib()
     acked = attr.ib(default=attr.Factory(asyncio.Event))
+    retry_count = attr.ib(repr=False, default=0)
 
 
 async def store_command_result(command):
@@ -84,14 +85,21 @@ async def send_command(queue):
         # Wait until the command is marked as acked or times out, we don't want
         # to send multiple commands to the external system until we know it's
         # been received
-        try:
-            await execute_command(queue, command)
+        for retries_remaining in range(2, -1, -1):
+            try:
+                await execute_command(queue, command)
 
-            logging.info(f"Received {command.id} - acked")
-            asyncio.create_task(handle_command_response(command))
-        # TODO: handle exceptions!
-        except:
-            logging.info(f"Received {command.id} - nacked. Something went wrong.")
+                logging.info(f"Received {command.id} - acked")
+                asyncio.create_task(handle_command_response(command))
+                break
+            # TODO: handle exceptions!
+            except:
+                logging.info(f"Received {command.id} - nacked. Something went wrong.")
+
+            if retries_remaining > 0:
+                logging.warning(f"Command {command.id} -  {retries_remaining} retries remaining.")
+            else:
+                logging.error(f"Command {command.id} -  {retries_remaining} retries exhausted.")
 
         # Simulate randomness of publishing commands
         await asyncio.sleep(random.random())
