@@ -119,6 +119,30 @@ async def receive_command(queue):
             command.acked.set()
 
 
+def _handle_exception(loop, context):
+    """Handle exceptions
+
+    Args:
+        loop(asyncio.loop): Current event loop
+        context(dict): Information about the exception including:
+        - ‘message’: Error message
+        - ‘exception’ (optional): Exception object
+        - ‘future’ (optional): asyncio.Future instance
+        - ‘handle’ (optional): asyncio.Handle instance
+        - ‘protocol’ (optional): Protocol instance
+        - ‘transport’ (optional): Transport instance
+        - ‘socket’ (optional): socket.socket instance
+    """
+    # Fallback to context["message"] if context["exception"] does not exist
+    msg = context.get("exception", context["message"])
+    logging.error(f"Caught exception: {msg}")
+
+    # TODO: decide how to handle specific exceptions!
+
+    logging.info("Shutting down...")
+    asyncio.create_task(_shutdown(loop))
+
+
 async def _shutdown(loop, signal=None):
     """Finalize outstanding tasks."""
     if signal:
@@ -136,6 +160,9 @@ def main():
     signals = (signal.SIGHUP, signal.SIGTERM, signal.SIGINT)
     for s in signals:
         loop.add_signal_handler(s, lambda s=s: asyncio.create_task(_shutdown(loop, signal=s)))
+
+    # ------------------------------- Configure exception handler -------------------------------- #
+    loop.set_exception_handler(_handle_exception)
 
     # ------------------------------ Run loops and handle shutdown ------------------------------ #
     try:
