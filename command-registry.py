@@ -31,16 +31,20 @@ AVAILABLE_COMMANDS = string.ascii_lowercase + string.digits
 @attr.s
 class Command:
     command = attr.ib()
-    id = attr.ib(repr=False)
+    id = attr.ib()
+    acked = attr.ib(repr=False, default=False)
 
 
-async def handle_command(command):
+async def handle_command_response(command):
     """Simulate handling a command
 
     Args:
         command (Command): Command that can be acted upon
     """
-    # Pretend to do work on the command - we'll add more here!
+    # TODO: Store command response data
+
+    # Execute the task in response to the command, still simulated as arbitrary
+    # work
     await asyncio.sleep(random.random())
 
     logging.info(f"Completed action for {command.id}")
@@ -78,9 +82,14 @@ async def receive_command(queue):
     while True:
         command = await queue.get()
 
-        logging.info(f"Received {command.id}")
+        # Simulate ack/nack status from the external system
+        command.acked = bool(random.getrandbits(1))
 
-        asyncio.create_task(handle_command(command))
+        if command.acked is True:
+            logging.info(f"Received {command.id} - acked")
+            asyncio.create_task(handle_command_response(command))
+        else:
+            logging.info(f"Received {command.id} - nacked. Something went wrong.")
 
 
 async def _shutdown(loop, signal=None):
