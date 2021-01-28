@@ -26,6 +26,7 @@ logging.basicConfig(
 )
 
 AVAILABLE_COMMANDS = string.ascii_lowercase + string.digits
+ISSUED_COMMANDS = {}
 
 
 @attr.s
@@ -35,13 +36,19 @@ class Command:
     acked = attr.ib(repr=False, default=False)
 
 
+async def store_command_result(command):
+    logging.info(f"Information received for {command.id}")
+    ISSUED_COMMANDS[command.id] = "fake data"
+
+
 async def handle_command_response(command):
     """Simulate handling a command
 
     Args:
         command (Command): Command that can be acted upon
     """
-    # TODO: Store command response data
+    # Store command response data
+    asyncio.create_task(store_command_result(command))
 
     # Execute the task in response to the command, still simulated as arbitrary
     # work
