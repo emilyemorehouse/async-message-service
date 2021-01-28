@@ -92,9 +92,14 @@ async def send_command(queue):
                 logging.info(f"Received {command.id} - acked")
                 asyncio.create_task(handle_command_response(command))
                 break
-            # TODO: handle exceptions!
+            except asyncio.TimeoutError:
+                # Command timed out - try again?
+                logging.warning(f"Command {command.id} - timed out waiting for ack.")
+            except asyncio.CancelledError:
+                # This task has been cancelled in the middle of this command
+                raise
             except:
-                logging.info(f"Received {command.id} - nacked. Something went wrong.")
+                logging.info(f"Received {command.id} - nacked. An unhandled error occurred.")
 
             if retries_remaining > 0:
                 logging.warning(f"Command {command.id} -  {retries_remaining} retries remaining.")
