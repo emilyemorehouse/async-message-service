@@ -33,7 +33,7 @@ ISSUED_COMMANDS = {}
 class Command:
     command = attr.ib()
     id = attr.ib()
-    acked = attr.ib(repr=False, default=False)
+    acked = attr.ib(default=attr.Factory(asyncio.Event))
 
 
 async def store_command_result(command):
@@ -57,6 +57,15 @@ async def handle_command_response(command):
     logging.info(f"Completed action for {command.id}")
 
 
+def execute_command(queue, command):
+    logging.info(f"Executing command {command}, awaiting ack...")
+
+    # Issue command by adding to the queue and running the task
+    asyncio.create_task(queue.put(command))
+
+    return asyncio.wait_for(command.acked.wait(), 4)
+
+
 async def send_command(queue):
     """Issue a command
 
@@ -72,9 +81,17 @@ async def send_command(queue):
         # Create command instance
         command = Command(id=id, command=command)
 
-        # Issue command by adding to the queue and running the task
-        asyncio.create_task(queue.put(command))
-        logging.info(f"Issued command {command}")
+        # Wait until the command is marked as acked or times out, we don't want
+        # to send multiple commands to the external system until we know it's
+        # been received
+        try:
+            await execute_command(queue, command)
+
+            logging.info(f"Received {command.id} - acked")
+            asyncio.create_task(handle_command_response(command))
+        # TODO: handle exceptions!
+        except:
+            logging.info(f"Received {command.id} - nacked. Something went wrong.")
 
         # Simulate randomness of publishing commands
         await asyncio.sleep(random.random())
@@ -90,13 +107,8 @@ async def receive_command(queue):
         command = await queue.get()
 
         # Simulate ack/nack status from the external system
-        command.acked = bool(random.getrandbits(1))
-
-        if command.acked is True:
-            logging.info(f"Received {command.id} - acked")
-            asyncio.create_task(handle_command_response(command))
-        else:
-            logging.info(f"Received {command.id} - nacked. Something went wrong.")
+        if bool(random.getrandbits(1)) is True:
+            command.acked.set()
 
 
 async def _shutdown(loop, signal=None):
